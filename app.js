@@ -90,28 +90,36 @@ Twitter.stream('statuses/filter', {track: '#visdevbot'}, function(stream) {
 //EXAMPLE CODE
 //TWITTER GET API
 //Automatically retweet a hashtag on an interval
-getandrepostQ = function() {
-	Twitter.get('search/tweets', { q: 'comics', result_type: 'recent', lang: 'en', count: 2 }, function(err1, data1, response1) {
-	  // data1 is an object with an array called statuses
-	  // statuses has objects that have info of the tweet/account id/ etc as keys and values
-  //  console.log(data1);
-	  for (var i = 0; i < data1.statuses.length; i++) {
-		Twitter.post('statuses/retweet/:id', { id: data1.statuses[i].id_str }, function (err, data, response) {
-      console.log(data);
-		});
-	  }
-	});
+var getandrepostQ = function() {
+    Twitter.get('search/tweets', { q: 'characterdesign', result_type: 'recent', lang: 'en', count: 5 }, function(err1, data1, response1) {
+      if (err1) {
+        console.error(err1);
+        return err1;
+      }
+      // data1 is an object with an array called statuses
+      // statuses has objects that have info of the tweet/account id/ etc as keys and values
+      //  console.log(data1);
+
+      // use forEach in the stead of a reg for loop
+      data1.statuses.forEach(function(status) {
+        let id = status.id_str;
+        console.log(`DEBUG: id_str: ${id}`); // those are backticks, remember that
+
+        // Looking at the API docs, the way I was calling this might have
+        // been the problem
+        Twitter.post('statuses/retweet/' + id, function (err, data, response) {
+          if (err) {
+            console.error(err);
+            return err;
+          }
+          console.log(`DEBUG: succesfully retweeted ${id}`);
+        });
+      })
+    });
 }
 
-setInterval(function() {
-  try {
-    getandrepostQ();
-  }
-  catch (e) {
-    console.log(e);
-  }
-}, 6000);
-// 6000 ms = 10 seconds
+setInterval(getandrepostQ, 6000);
+// 6000 ms = 6 seconds
 // 60000 ms = 1 minute
 // 3600000 ms = 1 hour
 // 86400000 ms = 24 hours
@@ -144,7 +152,7 @@ var arrOfMagicSayings = [
 ]
 
 // Call the stream function and pass in 'statuses/filter', our filter object, and our callback
-Twitter.stream('statuses/filter', {track: '#TechKnightsDemoMagic'}, function(stream) {
+Twitter.stream('statuses/filter', {track: '#visdevbotmagic'}, function(stream) {
   // ... when we get tweet data...
   stream.on('data', function(tweet) {
     // print out the text of the tweet that came in
@@ -166,3 +174,77 @@ Twitter.stream('statuses/filter', {track: '#TechKnightsDemoMagic'}, function(str
     console.log(error);
   });
 });
+
+//EXAMPLE CODE
+//TWITTER GET API
+//Johabi's Optimized Get/Retweet Method
+//Automatically retweet a hashtag on an interval
+/**
+ * callback(err, retweetArray)
+ */
+
+/**
+ * callback(error, tweet)
+ */
+const retweetByStatus = (status, callback) => {
+  let id = status.id_str;
+  console.log(`DEBUG: id_str: ${id}`);
+
+  Twitter.post(`statuses/retweet/${id}`, (err, tweet) => {
+    if (err) {
+      console.error(err);
+      return callback(err);
+    }
+    callback(null, tweet);
+  });
+}
+
+/**
+ * callback(err, retweetArray)
+ */
+const retweetAllFromStatusArray = (statusArray, callback) => {
+  if (statusArray.length === 0) {
+    console.log(`DEBUG: no statuses in array`)
+    return callback(null, []);
+  }
+
+  let retweetArray = [];
+  statusArray.forEach((status) => {
+    retweetByStatus(status, (err, tweet) => {
+      if (err) {
+        console.error(err);
+        console.log(`DEBUG: tweet = ${err}`);
+        retweetArray.push(err);
+      } else {
+        console.log(`DEBUG: tweet = ${JSON.stringify(tweet, null, '  ')}`);
+        retweetArray.push(tweet);
+      }
+      // are all retweets accounted for?
+      if (retweetArray.length === statusArray.length) {
+        // if so, we're done and ready for the callback
+        callback(null, retweetArray);
+      }
+    })
+  })
+}
+
+const getandrepostQu = (callback) => {
+  Twitter.get('search/tweets', { q: 'comics', result_type: 'recent', lang: 'en', count: 2 }, (err, data) => {
+    if (err) {
+      console.error(err);
+      return callback(err);
+    }
+    retweetAllFromStatusArray(data.statuses, callback);
+  });
+}
+
+(function recurse(){
+  getandrepostQu((err, retweets) => {
+    if (err) {
+      console.error(err);
+    } else {
+      console.log(`DEBUG: retweets = ${JSON.stringify(retweets, null, '  ')}`);
+    }
+    setTimeout(recurse, 6000);
+  })
+})();
